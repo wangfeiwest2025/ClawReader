@@ -1,0 +1,5 @@
+{
+  "name": "ClawReader - AI-Powered E-Book Suite",
+  "description": "A professional web-based e-book reader and converter supporting EPUB, PDF, MOBI, FB2, TXT, and RTF with integrated Gemini AI for summaries and deep insights.",
+  "requestFramePermissions": []
+}
