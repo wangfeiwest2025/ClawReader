@@ -268,16 +268,55 @@ const ReaderView: React.FC<ReaderViewProps> = ({ book, onBack }) => {
           if (isMounted) { setPdfDoc(doc); setEngineLoading(false); setPageNum(1); }
         } else {
           // MOBI/TXT/FB2 etc...
-          const text = (book.format === 'mobi' || book.format === 'azw3') 
-            ? await parseMobi(contentData as ArrayBuffer)
-            : typeof contentData === 'string' ? contentData : new TextDecoder().decode(contentData as ArrayBuffer);
+          let rawText = "";
+          
+          if (book.format === 'mobi' || book.format === 'azw3') {
+             rawText = await parseMobi(contentData as ArrayBuffer);
+          } else if (book.format === 'fb2') {
+             const decoder = new TextDecoder('utf-8');
+             rawText = decoder.decode(contentData as ArrayBuffer);
+          } else {
+             // TXT, RTF
+             rawText = typeof contentData === 'string' ? contentData : new TextDecoder().decode(contentData as ArrayBuffer);
+          }
           
           if (!isMounted) return;
-          const parser = new DOMParser();
+
           const elements: React.ReactNode[] = [];
-          text.split(/\r?\n/).forEach((l, i) => {
-            if (l.trim()) elements.push(<p key={i} className="mb-4 indent-8 text-justify">{l.trim()}</p>);
-          });
+          
+          if (['mobi', 'azw3', 'fb2'].includes(book.format)) {
+             // Parse HTML/XML Structure for better rendering
+             const parser = new DOMParser();
+             const type = book.format === 'fb2' ? 'text/xml' : 'text/html';
+             const doc = parser.parseFromString(rawText, type as DOMParserSupportedType);
+             
+             // Extract paragraph-like elements
+             const blocks = doc.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6, title, section-title');
+             
+             if (blocks.length > 0) {
+                 blocks.forEach((block, i) => {
+                     const t = block.textContent?.trim();
+                     if (t) {
+                       // Simple check to avoid huge blocks if div wraps everything
+                       if (t.length > 0) {
+                          elements.push(<p key={i} className="mb-4 indent-8 text-justify">{t}</p>);
+                       }
+                     }
+                 });
+             } else {
+                 // Fallback if no structural tags found
+                 const bodyText = doc.body ? doc.body.innerText : (doc.documentElement.textContent || rawText);
+                 bodyText.split(/\n\s*\n/).forEach((l, i) => {
+                   if (l.trim()) elements.push(<p key={i} className="mb-4 indent-8 text-justify">{l.trim()}</p>);
+                 });
+             }
+          } else {
+             // Plain Text
+             rawText.split(/\r?\n/).forEach((l, i) => {
+                if (l.trim()) elements.push(<p key={i} className="mb-4 indent-8 text-justify">{l.trim()}</p>);
+             });
+          }
+
           setParsedElements(elements);
           setEngineLoading(false);
         }
