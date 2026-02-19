@@ -8,6 +8,7 @@ import ReaderView from './components/ReaderView';
 import ConverterView from './components/ConverterView';
 import AIAssistant from './components/AIAssistant';
 import InfoModal, { InfoType } from './components/InfoModal';
+import SettingsModal from './components/SettingsModal';
 import { getAllBooksFromDB, saveBookToDB, deleteBookFromDB } from './services/storage';
 import { AlertTriangle } from 'lucide-react';
 
@@ -21,6 +22,7 @@ const App: React.FC = () => {
   // Modal State
   const [bookToDelete, setBookToDelete] = useState<string | null>(null);
   const [infoModalType, setInfoModalType] = useState<InfoType>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     const loadBooks = async () => {
@@ -101,7 +103,12 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col md:flex-row h-screen w-full bg-white text-gray-900 overflow-hidden">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onImport={handleFileImport} />
+      <Sidebar 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        onImport={handleFileImport}
+        onOpenSettings={() => setIsSettingsOpen(true)}
+      />
       
       <main className="flex-1 flex flex-col relative overflow-hidden bg-white">
         {activeTab !== 'reader' && (
@@ -130,7 +137,11 @@ const App: React.FC = () => {
                 />
               )}
               {activeTab === 'reader' && currentBook && (
-                <ReaderView book={currentBook} onBack={() => setActiveTab('library')} />
+                <ReaderView 
+                  book={currentBook} 
+                  onBack={() => setActiveTab('library')} 
+                  onToggleAI={() => setIsAiOpen(!isAiOpen)}
+                />
               )}
               {activeTab === 'converter' && (
                 <ConverterView books={books} />
@@ -148,6 +159,9 @@ const App: React.FC = () => {
 
         {/* Legal Info Modal */}
         <InfoModal type={infoModalType} onClose={() => setInfoModalType(null)} />
+
+        {/* Settings Modal */}
+        {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} />}
 
         {/* Delete Modal */}
         {bookToDelete && (

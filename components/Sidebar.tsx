@@ -5,9 +5,10 @@ interface SidebarProps {
   activeTab: 'library' | 'reader' | 'converter';
   setActiveTab: (tab: 'library' | 'reader' | 'converter') => void;
   onImport: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onOpenSettings: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onImport }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onImport, onOpenSettings }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const navItems = [
@@ -53,7 +54,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onImport }) 
         </nav>
 
         <div className="border-t border-gray-200 pt-4">
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-500 hover:bg-gray-200 transition-colors font-medium">
+          <button 
+            onClick={onOpenSettings}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-500 hover:bg-gray-200 transition-colors font-medium"
+          >
             <Settings size={20} />
             Settings
           </button>

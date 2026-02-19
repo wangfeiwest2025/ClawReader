@@ -1,9 +1,9 @@
 
 import React, { useState } from 'react';
 import { Book, BookFormat } from '../types';
-import { Download, CheckCircle2, Loader2, RefreshCw, FileText, AlertTriangle } from 'lucide-react';
-import { parseMobi } from '../utils/mobiParser';
+import { Download, CheckCircle2, Loader2, RefreshCw, FileText } from 'lucide-react';
 import { jsPDF } from "jspdf";
+import { extractBookText } from '../utils/textExtractor';
 
 interface ConverterViewProps {
   books: Book[];
@@ -16,132 +16,11 @@ const ConverterView: React.FC<ConverterViewProps> = ({ books }) => {
   const [statusMessage, setStatusMessage] = useState('');
   const [result, setResult] = useState<{ url: string; name: string } | null>(null);
 
-  // Added 'pdf' to supported formats
   const formats: BookFormat[] = ['txt', 'pdf']; 
-
-  // --- Helper: Extract Text from EPUB ---
-  const extractFromEpub = async (content: ArrayBuffer | string): Promise<string> => {
-    return new Promise(async (resolve, reject) => {
-      try {
-        setStatusMessage("Initializing EPUB engine...");
-        const bookData = typeof content === 'string' 
-          ? (new TextEncoder().encode(content)).buffer 
-          : content.slice(0); // Clone buffer
-
-        // @ts-ignore - ePub is global
-        const book = window.ePub(bookData);
-        await book.ready;
-
-        setStatusMessage("Parsing chapters...");
-        let fullText = "";
-        
-        // Iterate through the spine (reading order)
-        // @ts-ignore
-        const spineItems = book.spine.items;
-        const total = spineItems.length;
-
-        for (let i = 0; i < spineItems.length; i++) {
-          const item = spineItems[i];
-          setStatusMessage(`Extracting chapter ${i + 1} of ${total}...`);
-          
-          if (item && item.href) {
-             try {
-                 const doc = await book.load(item.href);
-                 if (doc) {
-                   let text = "";
-                   if (typeof doc === 'string') {
-                       const parser = new DOMParser();
-                       const htmlDoc = parser.parseFromString(doc, "text/html");
-                       text = htmlDoc.body.innerText || htmlDoc.body.textContent || "";
-                   } else if (doc.body) {
-                       text = doc.body.innerText || doc.body.textContent || "";
-                   } else if (doc.documentElement) {
-                       text = doc.documentElement.textContent || "";
-                   }
-                   fullText += text.trim() + "\n\n";
-                 }
-             } catch (err) {
-                 console.warn(`Skipping chapter ${i} due to load error`, err);
-             }
-          }
-          
-          if (item.unload && typeof item.unload === 'function') {
-             item.unload();
-          }
-        }
-        resolve(fullText);
-      } catch (e) {
-        console.error("EPUB Extraction Error:", e);
-        reject(e);
-      }
-    });
-  };
-
-  // --- Helper: Extract Text from PDF ---
-  const extractFromPdf = async (content: ArrayBuffer | string): Promise<string> => {
-    try {
-      setStatusMessage("Loading PDF document...");
-      // @ts-ignore
-      const pdfjsLib = window.pdfjsLib;
-      // FIX: Use jsdelivr for worker to match the script tag and ensure accessibility
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.4.120/build/pdf.worker.min.js';
-
-      const data = typeof content === 'string' 
-        ? (new TextEncoder().encode(content)).buffer 
-        : content.slice(0);
-
-      const loadingTask = pdfjsLib.getDocument({ data });
-      const doc = await loadingTask.promise;
-      
-      let fullText = "";
-      const total = doc.numPages;
-
-      for (let i = 1; i <= total; i++) {
-        setStatusMessage(`Reading page ${i} of ${total}...`);
-        const page = await doc.getPage(i);
-        const textContent = await page.getTextContent();
-        // @ts-ignore
-        const pageText = textContent.items.map(item => item.str).join(' ');
-        fullText += pageText + "\n\n";
-      }
-
-      return fullText;
-    } catch (e) {
-      console.error(e);
-      throw new Error("PDF extraction failed.");
-    }
-  };
-
-  // --- Helper: Extract from FB2 (XML) ---
-  const extractFromFb2 = (content: string | ArrayBuffer): string => {
-    setStatusMessage("Parsing FB2 structure...");
-    let text = typeof content === 'string' ? content : new TextDecoder("utf-8").decode(content);
-    try {
-      const parser = new DOMParser();
-      const xmlDoc = parser.parseFromString(text, "text/xml");
-      const body = xmlDoc.getElementsByTagName("body")[0] || xmlDoc.getElementsByTagName("FictionBook")[0];
-      return body ? (body.textContent || "") : text.replace(/<[^>]+>/g, '\n');
-    } catch (e) {
-       return text.replace(/<[^>]+>/g, '\n');
-    }
-  };
-
-  // --- Helper: RTF Stripper ---
-  const extractFromRtf = (content: string | ArrayBuffer): string => {
-     setStatusMessage("Processing RTF...");
-     let text = typeof content === 'string' ? content : new TextDecoder("utf-8").decode(content);
-     text = text.replace(/(\{[^{}]*\})/g, "");
-     text = text.replace(/\\par[d]?\s*/g, "\n");
-     text = text.replace(/\\line\s*/g, "\n");
-     text = text.replace(/\\[a-z0-9]+\s?/g, "");
-     text = text.replace(/[{}]/g, "");
-     return text.trim();
-  };
 
   /**
    * Optimized PDF Generator
    * Uses Async/Await pattern to yield control to UI thread.
-   * Uses Binary Search for fast text wrapping.
    */
   const createPdfWithCanvas = async (title: string, text: string, onProgress: (msg: string) => void): Promise<Blob> => {
     // 1. Setup Constants
@@ -152,7 +31,7 @@ const ConverterView: React.FC<ConverterViewProps> = ({ books }) => {
     const lineHeight = 18; 
     const fontSize = 11;
     
-    // Scale 1.5 is a sweet spot: good text quality, significantly less memory than 2.0
+    // Scale 1.5 is a sweet spot
     const scale = 1.5; 
     const canvasWidth = pageWidth * scale;
     const canvasHeight = pageHeight * scale;
@@ -161,7 +40,7 @@ const ConverterView: React.FC<ConverterViewProps> = ({ books }) => {
     const canvas = document.createElement('canvas');
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
-    const ctx = canvas.getContext('2d', { alpha: false }); // Optimize for no alpha
+    const ctx = canvas.getContext('2d', { alpha: false }); 
 
     if (!ctx) throw new Error("Canvas init failed");
 
@@ -183,7 +62,6 @@ const ConverterView: React.FC<ConverterViewProps> = ({ books }) => {
     // Helper: Flush Page to PDF
     let pageIndex = 1;
     const flushPage = async (isLast = false) => {
-         // Compress as JPEG 0.75 to save massive amounts of memory
          const imgData = canvas.toDataURL('image/jpeg', 0.75); 
          if (pageIndex > 1) doc.addPage();
          doc.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight);
@@ -192,13 +70,11 @@ const ConverterView: React.FC<ConverterViewProps> = ({ books }) => {
              clearCanvas();
              pageIndex++;
              onProgress(`Rendering PDF Page ${pageIndex}...`);
-             // Critical: Yield to event loop to prevent crash/freeze
              await new Promise(r => setTimeout(r, 0));
          }
     };
 
     // Helper: Binary Search for fitting text
-    // Much faster than linear scan for long lines
     const getFitIndex = (textStr: string, maxWidth: number): number => {
         if (ctx.measureText(textStr).width <= maxWidth) return textStr.length;
         
@@ -224,21 +100,17 @@ const ConverterView: React.FC<ConverterViewProps> = ({ books }) => {
     clearCanvas();
     let cursorY = margin;
 
-    // Draw Title
     ctx.font = `bold 18pt ${fontStack}`;
     ctx.fillText(title, margin, cursorY);
     cursorY += 50;
 
-    // Draw Body
     ctx.font = `${fontSize}pt ${fontStack}`;
     
-    // Pre-split paragraphs
     const paragraphs = text.split(/\r?\n/);
     
     for (let i = 0; i < paragraphs.length; i++) {
         let p = paragraphs[i].trim();
         if (!p) {
-            // Empty line
             cursorY += lineHeight;
             if (cursorY > pageHeight - margin) {
                 await flushPage();
@@ -247,43 +119,36 @@ const ConverterView: React.FC<ConverterViewProps> = ({ books }) => {
             continue;
         }
 
-        // Indent
         p = "    " + p;
 
         while (p.length > 0) {
-            // Find how many chars fit
             const fitIdx = getFitIndex(p, printableWidth);
             const lineToDraw = p.substring(0, fitIdx);
             
             ctx.fillText(lineToDraw, margin, cursorY);
             cursorY += lineHeight;
             
-            p = p.substring(fitIdx); // Remaining text
+            p = p.substring(fitIdx);
 
-            // Check page break
             if (cursorY > pageHeight - margin) {
                 await flushPage();
                 cursorY = margin;
             }
         }
         
-        // Paragraph spacing
         cursorY += lineHeight * 0.5;
         if (cursorY > pageHeight - margin) {
             await flushPage();
             cursorY = margin;
         }
 
-        // Yield periodically to keep browser responsive
         if (i % 20 === 0) {
              onProgress(`Processing paragraph ${i} / ${paragraphs.length}...`);
              await new Promise(r => setTimeout(r, 0));
         }
     }
 
-    // Final Flush
     await flushPage(true);
-    
     return doc.output('blob');
   };
 
@@ -294,45 +159,15 @@ const ConverterView: React.FC<ConverterViewProps> = ({ books }) => {
 
     setIsConverting(true);
     setResult(null);
-    setStatusMessage("Starting conversion engine...");
+    setStatusMessage("Extracting text content...");
 
     try {
-      let resultText = "";
+      // Use the shared utility
+      // Pass a very large limit for conversion (e.g., 10 million chars)
+      const resultText = await extractBookText(book, 10000000); 
 
-      // 1. Extract Text
-      switch (book.format) {
-        case 'epub':
-          resultText = await extractFromEpub(book.content);
-          break;
-        case 'pdf':
-          resultText = await extractFromPdf(book.content);
-          break;
-        case 'fb2':
-          resultText = extractFromFb2(book.content);
-          break;
-        case 'rtf':
-          resultText = extractFromRtf(book.content);
-          break;
-        case 'txt':
-          resultText = typeof book.content === 'string' ? book.content : new TextDecoder().decode(book.content);
-          break;
-        case 'mobi':
-        case 'azw3':
-          setStatusMessage(`Parsing ${book.format.toUpperCase()} binary...`);
-          const buffer = book.content instanceof ArrayBuffer 
-               ? book.content 
-               : new TextEncoder().encode(book.content).buffer;
-          const mobiHtml = await parseMobi(buffer);
-          setStatusMessage("Cleaning text content...");
-          resultText = mobiHtml.replace(/<[^>]+>/g, "\n").replace(/\n\s*\n/g, "\n\n").trim();
-          break;
-        default:
-          throw new Error("Unsupported format");
-      }
-
-      setStatusMessage(`Initializing ${targetFormat.toUpperCase()} Generator...`);
+      setStatusMessage(`Generating ${targetFormat.toUpperCase()} file...`);
       
-      // 2. Generate File
       let blob: Blob;
       let filename = `${book.title}`;
 
@@ -495,7 +330,6 @@ const ConverterView: React.FC<ConverterViewProps> = ({ books }) => {
             </div>
           </div>
           
-          {/* Decorative Background Elements */}
           <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-500/30 rounded-full blur-3xl" />
           <div className="absolute top-1/2 -left-12 w-32 h-32 bg-purple-500/20 rounded-full blur-2xl" />
           <div className="absolute bottom-0 right-0 w-full h-32 bg-gradient-to-t from-indigo-950 to-transparent opacity-60" />

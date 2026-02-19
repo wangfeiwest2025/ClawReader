@@ -24,3 +24,10 @@ export interface ReadingSettings {
   theme: 'light' | 'dark' | 'sepia';
   fontFamily: 'serif' | 'sans';
 }
+
+export interface AISettings {
+  provider: 'google' | 'openai' | 'custom';
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+}

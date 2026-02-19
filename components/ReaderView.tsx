@@ -1,15 +1,16 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Book, ReadingSettings } from '../types';
-import { ChevronLeft, ChevronRight, Settings, ArrowLeft, Loader2, AlertCircle, Maximize2, Minimize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
 import { parseMobi } from '../utils/mobiParser';
 
 interface ReaderViewProps {
   book: Book;
   onBack: () => void;
+  onToggleAI: () => void;
 }
 
-const ReaderView: React.FC<ReaderViewProps> = ({ book, onBack }) => {
+const ReaderView: React.FC<ReaderViewProps> = ({ book, onBack, onToggleAI }) => {
   const [settings, setSettings] = useState<ReadingSettings>({
     fontSize: 18,
     lineHeight: 1.6,
@@ -357,6 +358,15 @@ const ReaderView: React.FC<ReaderViewProps> = ({ book, onBack }) => {
                {currentPage.label}
              </div>
            )}
+           
+          <button 
+            onClick={onToggleAI} 
+            className="p-2 rounded-full transition-all bg-black/20 md:bg-black/5 text-white md:text-inherit hover:bg-black/10 active:scale-95"
+            title="Open AI Assistant"
+          >
+            <Sparkles size={20} />
+          </button>
+
           <button 
             onClick={() => setShowSettings(!showSettings)} 
             className={`p-2 rounded-full transition-all ${showSettings ? 'bg-indigo-600 text-white' : 'bg-black/20 md:bg-black/5 text-white md:text-inherit hover:bg-black/10'}`}
