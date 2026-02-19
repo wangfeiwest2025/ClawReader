@@ -1,15 +1,18 @@
+
 import React from 'react';
 import { Book } from '../types';
-import { Sparkles, Search, Bell, Menu } from 'lucide-react';
+import { Sparkles, Search, Bell, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 interface HeaderProps {
   activeTab: string;
   currentBook: Book | null;
   toggleAI: () => void;
   isAiOpen: boolean;
+  isSidebarOpen: boolean;
+  onToggleSidebar: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ activeTab, currentBook, toggleAI, isAiOpen }) => {
+const Header: React.FC<HeaderProps> = ({ activeTab, currentBook, toggleAI, isAiOpen, isSidebarOpen, onToggleSidebar }) => {
   const getTitle = () => {
     switch (activeTab) {
       case 'library': return 'My Library';
@@ -21,10 +24,19 @@ const Header: React.FC<HeaderProps> = ({ activeTab, currentBook, toggleAI, isAiO
 
   return (
     <header className="h-14 md:h-20 border-b border-gray-100 bg-white px-4 md:px-8 flex items-center justify-between z-10 shrink-0 sticky top-0 pt-safe">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 md:gap-4">
+        <button 
+          onClick={onToggleSidebar}
+          className="hidden md:flex p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+          title={isSidebarOpen ? "Close Sidebar" : "Open Sidebar"}
+        >
+          {isSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
+        </button>
+
         <h2 className="text-lg md:text-2xl font-black text-gray-900 tracking-tight">
           {getTitle()}
         </h2>
+        
         {activeTab === 'library' && (
           <div className="hidden sm:flex items-center gap-2 ml-4 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">
             <Search size={14} className="text-gray-400" />

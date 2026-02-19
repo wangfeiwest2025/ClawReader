@@ -18,6 +18,7 @@ const App: React.FC = () => {
   const [currentBook, setCurrentBook] = useState<Book | null>(null);
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
   // Modal State
   const [bookToDelete, setBookToDelete] = useState<string | null>(null);
@@ -108,6 +109,7 @@ const App: React.FC = () => {
         setActiveTab={setActiveTab} 
         onImport={handleFileImport}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        isOpen={isSidebarOpen}
       />
       
       <main className="flex-1 flex flex-col relative overflow-hidden bg-white">
@@ -117,6 +119,8 @@ const App: React.FC = () => {
             currentBook={currentBook}
             toggleAI={() => setIsAiOpen(!isAiOpen)}
             isAiOpen={isAiOpen}
+            isSidebarOpen={isSidebarOpen}
+            onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
           />
         )}
         
