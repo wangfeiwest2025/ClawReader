@@ -145,6 +145,8 @@ const App: React.FC = () => {
                   book={currentBook} 
                   onBack={() => setActiveTab('library')} 
                   onToggleAI={() => setIsAiOpen(!isAiOpen)}
+                  isSidebarOpen={isSidebarOpen}
+                  onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
                 />
               )}
               {activeTab === 'converter' && (

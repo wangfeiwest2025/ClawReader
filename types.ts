@@ -30,4 +30,5 @@ export interface AISettings {
   apiKey: string;
   baseUrl: string;
   model: string;
+  useProxy?: boolean;
 }

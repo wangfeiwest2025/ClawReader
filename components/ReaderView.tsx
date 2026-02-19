@@ -1,16 +1,18 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Book, ReadingSettings } from '../types';
-import { ChevronLeft, ChevronRight, Settings, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, ArrowLeft, Loader2, Sparkles, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { parseMobi } from '../utils/mobiParser';
 
 interface ReaderViewProps {
   book: Book;
   onBack: () => void;
   onToggleAI: () => void;
+  isSidebarOpen: boolean;
+  onToggleSidebar: () => void;
 }
 
-const ReaderView: React.FC<ReaderViewProps> = ({ book, onBack, onToggleAI }) => {
+const ReaderView: React.FC<ReaderViewProps> = ({ book, onBack, onToggleAI, isSidebarOpen, onToggleSidebar }) => {
   const [settings, setSettings] = useState<ReadingSettings>({
     fontSize: 18,
     lineHeight: 1.6,
@@ -104,8 +106,17 @@ const ReaderView: React.FC<ReaderViewProps> = ({ book, onBack, onToggleAI }) => 
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent navigation if user is typing in an input field (e.g. AI chat)
+      const target = e.target as HTMLElement;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) {
+        return;
+      }
+
       if (e.key === 'ArrowLeft') prevPage();
-      if (e.key === 'ArrowRight' || e.key === ' ') nextPage();
+      if (e.key === 'ArrowRight' || e.key === ' ') {
+        if (e.key === ' ') e.preventDefault(); // Prevent default scroll for space
+        nextPage();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -346,15 +357,28 @@ const ReaderView: React.FC<ReaderViewProps> = ({ book, onBack, onToggleAI }) => 
       
       {/* Top Header - Responsive */}
       <div className="absolute top-0 left-0 right-0 h-14 md:h-16 flex items-center justify-between px-4 z-50 pt-safe bg-gradient-to-b from-black/20 to-transparent md:from-transparent">
-        <div className="flex items-center gap-3">
-          <button onClick={onBack} className="p-2 rounded-full bg-white/10 backdrop-blur-md text-white md:text-inherit transition-all">
+        <div className="flex items-center gap-2 md:gap-3">
+          {/* Sidebar Toggle (Desktop Only) */}
+          <button 
+            onClick={onToggleSidebar}
+            className="hidden md:flex p-2 rounded-full bg-white/10 backdrop-blur-md text-white md:text-inherit md:bg-black/5 hover:bg-black/10 transition-all"
+            title={isSidebarOpen ? "Hide Sidebar" : "Show Sidebar"}
+          >
+            {isSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
+          </button>
+
+          <button onClick={onBack} className="p-2 rounded-full bg-white/10 backdrop-blur-md text-white md:text-inherit md:bg-black/5 hover:bg-black/10 transition-all">
             <ArrowLeft size={20} />
           </button>
-          <h2 className="text-xs md:text-sm font-bold truncate max-w-[120px] md:max-w-md text-white md:text-inherit">{book.title}</h2>
+          
+          <h2 className="text-xs md:text-sm font-bold truncate max-w-[120px] md:max-w-md text-white md:text-inherit select-none">
+            {book.title}
+          </h2>
         </div>
+        
         <div className="flex items-center gap-2">
            {!engineLoading && (
-             <div className="px-2.5 py-1 rounded-full bg-black/20 backdrop-blur-md text-[10px] font-bold text-white uppercase tracking-widest">
+             <div className="px-2.5 py-1 rounded-full bg-black/20 backdrop-blur-md text-[10px] font-bold text-white uppercase tracking-widest select-none">
                {currentPage.label}
              </div>
            )}

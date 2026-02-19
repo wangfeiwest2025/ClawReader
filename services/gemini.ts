@@ -13,7 +13,8 @@ const getSettings = (): AISettings => {
         provider: parsed.provider || 'google',
         apiKey: parsed.apiKey || '',
         baseUrl: parsed.baseUrl || 'https://generativelanguage.googleapis.com',
-        model: parsed.model || 'gemini-3-flash-preview'
+        model: parsed.model || 'gemini-3-flash-preview',
+        useProxy: parsed.useProxy || false
       };
     } catch (e) {
       console.error("Error parsing AI settings", e);
@@ -23,7 +24,8 @@ const getSettings = (): AISettings => {
     provider: 'google', 
     apiKey: '', 
     baseUrl: 'https://generativelanguage.googleapis.com', 
-    model: 'gemini-3-flash-preview' 
+    model: 'gemini-3-flash-preview',
+    useProxy: false
   };
 };
 
@@ -34,16 +36,32 @@ const openaiFetch = async (settings: AISettings, messages: any[], jsonMode: bool
 
   // 1. Clean URL: Handle potential query parameters
   let endpoint = settings.baseUrl.trim();
-  if (!endpoint.includes('?')) {
-     endpoint = endpoint.replace(/\/+$/, '');
+  
+  // Basic cleanup of trailing slash
+  let queryParams = '';
+  if (endpoint.includes('?')) {
+    const parts = endpoint.split('?');
+    endpoint = parts[0];
+    queryParams = '?' + parts.slice(1).join('?');
   }
-  if (!endpoint.includes('/chat/completions')) {
-      if (endpoint.includes('?')) {
-          const [base, query] = endpoint.split('?');
-          endpoint = `${base.replace(/\/+$/, '')}/chat/completions?${query}`;
-      } else {
-          endpoint = `${endpoint}/chat/completions`;
-      }
+  endpoint = endpoint.replace(/\/+$/, '');
+
+  // Intelligent Endpoint Construction
+  // If the user provided a full path ending in common chat endpoints, trust it.
+  const isFullPath = /\/(chat\/completions|generate|chat)$/.test(endpoint);
+
+  if (!isFullPath) {
+     // Assume it's a base URL like https://api.openai.com/v1
+     endpoint = `${endpoint}/chat/completions`;
+  }
+
+  // Re-attach query params if any
+  endpoint = endpoint + queryParams;
+
+  // --- PROXY HANDLING ---
+  if (settings.useProxy) {
+    // Wrap the endpoint with corsproxy.io
+    endpoint = `https://corsproxy.io/?${encodeURIComponent(endpoint)}`;
   }
 
   const payload: any = {
@@ -104,22 +122,32 @@ const openaiFetch = async (settings: AISettings, messages: any[], jsonMode: bool
     if ((error instanceof TypeError && error.message.includes('Failed to fetch')) || error.name === 'AbortError') {
       console.error("CORS or Network Error details:", error);
       
-      const isHttps = window.location.protocol === 'https:';
-      const isHttpTarget = endpoint.startsWith('http:');
-
       let friendlyMsg = "Connection Failed (CORS/Network).";
       
-      if (isHttps && isHttpTarget) {
-         friendlyMsg = "Mixed Content Error: Cannot access insecure HTTP API from an HTTPS site.";
+      if (settings.useProxy) {
+          friendlyMsg = "Proxy Connection Failed. The proxy service might be down or blocking the request.";
       } else if (settings.baseUrl.includes('localhost') || settings.baseUrl.includes('127.0.0.1')) {
          friendlyMsg = "Connection to Localhost failed. Ensure your local server allows CORS (e.g., OLLAMA_ORIGINS='*').";
       } else {
-         friendlyMsg = `Failed to connect to ${endpoint}. Likely a CORS issue or server is offline.`;
+         friendlyMsg = `Failed to connect to provider. This is likely a CORS issue. Try enabling 'Bypass CORS' in settings.`;
       }
       
       throw new Error(friendlyMsg);
     }
     throw error;
+  }
+};
+
+/**
+ * Tests the connection for OpenAI-compatible providers
+ */
+export const testOpenAIConnection = async (settings: AISettings): Promise<{ success: boolean; message: string }> => {
+  try {
+    const messages = [{ role: "user", content: "Hi" }];
+    await openaiFetch({ ...settings }, messages, false);
+    return { success: true, message: "Connection Successful! ✅" };
+  } catch (e: any) {
+    return { success: false, message: e.message || "Unknown Connection Error" };
   }
 };
 
