@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://novareader.cc.cd/sitemap.xml
+Sitemap: https://clawreader.top/sitemap.xml
