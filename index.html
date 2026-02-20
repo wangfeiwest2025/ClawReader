@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -19,6 +20,13 @@
     <meta name="format-detection" content="telephone=no">
 
     <link rel="canonical" href="https://clawreader.top/" />
+
+    <!-- Client-side Redirect: Enforce non-www to match canonical tag -->
+    <script>
+      if (window.location.hostname === 'www.clawreader.top') {
+        window.location.replace('https://clawreader.top' + window.location.pathname + window.location.search);
+      }
+    </script>
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
